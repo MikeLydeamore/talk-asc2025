@@ -1,0 +1,243 @@
+---
+title: Modelling patient movements for hospital outbreaks
+author: David Wu; Michael Lydeamore
+date: today
+toc: true
+format:
+  presentation-revealjs+letterbox:
+    slide-number: "c/t"
+    show-slide-number: all
+output-file: "index.html"
+---
+
+```{r}
+#| label: load-packages
+library(knitr)
+library(ggplot2)
+library(dplyr)
+```
+
+```{css}
+#| echo: false
+
+/* Limit the overall grid height inside the slide */
+.reveal .shrink-grid {
+  max-height: 55vh;      /* leaves space for the title */
+}
+
+/* Make each image small enough so 2 rows fit */
+.reveal .shrink-grid img {
+  max-height: 25vh;      /* 2 × 30vh + gaps ≈ 60–65vh */
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+```
+
+## Hospital outbreaks
+
+In 2018, a multi-institutional outbreak of CPE highlighted the interlinked nature of healthcare in Victoria.
+
+Since then, CPE is now notifiable, but there is not a centralised surveillance or outbreak response system.
+
+## Carbanememase-producing _Enterobacterales_
+
+* Acquired primarily in hospital
+* Resistant to last-line antibiotics
+* Mortality, given clinical symptoms, in the order of 30%
+* Carriage for >= 12 months
+
+::: {.incremental}
+* Testing via rectal swab
+* Can carry with no symptoms
+* Unknown if asymptomatic people can transmit
+:::
+
+## Surveillance and outbreak control
+
+End goal is to model outbreak spread, and then surveillance/control methods.
+
+::: {.fragment}
+To do this, we need to model how patients move around in hospitals
+:::
+
+## Data
+
+We have line-listed hospital admissions data for all hospitals in Victoria, Australia, from 2016-2021.
+
+The dataset is linked, allowing us to follow individuals through time. Each observation has:
+
+* Admission time,
+* Discharge (separation time),
+* Hospital of admission,
+* Diagnosis codes,
+* Handful of demographics
+
+
+## Current state of the field
+
+We need to convert this sort of data into a structure appropriate for modelling.
+
+::: {.fragment}
+
+```{r}
+#| label: example-linelist
+
+knitr::kable(
+  tibble::tribble(
+    ~patient_id, ~admission_date, ~separation_date, ~location, ~diagnosis_codes,
+    1, "2020-01-01", "2020-01-02", "H1", "A B C",
+    2, "2020-01-01", "2020-01-02", "H2", "A B C",
+    1, "2020-01-03", "2020-01-04", "H2", "A B C",
+  )
+)
+```
+
+:::
+
+::: {.fragment}
+This is interpreted as one transfer from H1 to H2, with a one-day gap.
+:::
+
+
+## Different ways to collapse the data
+
+Some notation:
+
+* $u, v$ are locations
+* $s, t$ are times, $t \geq s$
+* Hazard for patients returning home, never readmitted: $\zeta_u(t)$
+* $w_{uv}(s,t)$ patients discharged from $u$ at $s$, then readmitted to $v$ at $t$
+
+
+## Different ways to collapse the data
+
+![](movement_general_case.svg){fig-align="center"}
+
+
+
+## Different ways to collapse the data
+
+Then, we have the following set of governing equations:
+
+::: {.incremental}
+* Hospital to home: $\lambda(u(s) \to \emptyset) = \zeta_u(s)$
+* Direct transfers: $\lambda(u(s) \to v(t)) = d_{uv}(s, t)$
+* Indirect transfers:
+  * Hospital to home: $\lambda(u(s) \to z_{uv}(t)) = \eta_{uv}(s, t)$
+  * Home to hospital: $\lambda(z_{uv}(t) \to v(t)) = \rho_{uv}(s, t)$
+
+:::
+
+## Model 1: Naive Static Method
+
+$$d_{uv}(s,t) = \frac{\sum_{s,t} w_{uv}(s,t)}{T_\Sigma N_u}$$
+
+::: {.callout-tip}
+All movements are instanteous, and the rate of movement is the mean over the entire observation period.
+:::
+
+## Model 1: Naive Static Method
+
+![](echidna-network.png){fig-align="center"}
+
+## Transfer patterns change over time
+
+![](images/2025-12-03-11-46-28.png){fig-align="center"}
+
+## Model 2: Static Method
+
+Choose a threshold value, $\omega$, to separate direct and indirect transfers
+
+
+$$d_{uv}(s,t) = d_{uv} =  \frac{\sum_{s,t: (t-s) < \omega} w_{uv}(s,t)}{T_\Sigma N_u}$$
+$$\eta_{uv}(s,t) = \eta_{uv} = \frac{\sum_{s,t: (t-s) \geq \omega} w_{uv}(s,t)}{T_\Sigma N_u}$$
+$$\rho_{uv}(s,t) = \rho_{uv} = \left[ \frac{\sum_{s,t: (t-s) \geq \omega} (t-s) w_{uv}(s,t)}{\sum_{s,t: (t-s) \geq \omega} w_{uv}(s,t)}  \right]^{-1}$$
+
+## Model 3: Snapshot Model
+
+Choose a snapshot duration $\omega$. This defines the threshold duration of an indirect transfer.
+
+$$\begin{aligned}
+\lambda(u(s) \to {z'}_{uv}(t)) &= \eta_{uv}(s, t)\\
+\lambda({z'}_{uv}(t) \to z_{uv}(t)) &= \delta(t \; \mathrm{ mod } \; \omega)\\
+\end{aligned}$$
+
+::: {.fragment}
+$z'$ contains the individuals that would enter $z$ within the duration of a given snapshot $[t, t+\omega]$, so that they do not immediately readmit to their next hospital.
+:::
+
+## Model 4: Temporal Model
+
+Effecitvely, choose a very small snapshot window, $\omega$. Individuals are not re-admitted to $z'$, instead they are re-admitted to $v$ uniformly between $t$ and $t+\omega$. This gives,
+
+$$d_{uv}(s, t) = \frac{\sum_{t: (t-s) < \omega} w_{uv}(s, t)}{\omega N_u}$$
+$$\eta_{uv}(s, t) = \frac{\sum_{t: (t-s) \geq \omega} w_{uv}(s, t)}{\omega N_u}$$
+$$\rho_{uv}(s,t) = \frac{1}{\lceil t \rceil_\omega - t}$$
+
+## Too much maths for 12 minutes!
+
+
+::: {layout-ncol="2" .shrink-grid}
+
+![Naïve static](images/naive-static.png){height="30%"}
+
+![Static](images/static.png)
+
+![Snapshot](images/snapshot.png)
+
+![Temporal](images/temporal.png)
+
+:::
+
+
+## Too much maths for 12 minutes!
+
+Current state-of-the-art: Patients move instantly, no concept of home, using average return rates over the entire data period
+
+::: {.fragment}
+Our models: [from least to most 'accurate']{style="font-size: 18pt;"}
+
+::: {.incremental}
+
+1. State-of-the-art
+2. State-of-the-art + patients return home
+3. Return rates change over time, patients held at home in "blocks"
+4. Return rates change over time, patients held at home for actual time
+
+:::
+:::
+
+
+
+## What difference does it make?
+
+![](images/2025-12-03-11-48-30.png){fig-align="center"}
+
+## What difference does it make?
+
+![](images/2025-12-03-11-48-43.png){fig-align="center"}
+
+
+## Takeaway
+
+::: {.fragment style="text-align: center; color: #107AB0; margin-bottom: 50px; margin-top: 50px"}
+Patients go home - and that needs to be modelled
+:::
+
+::: {.fragment}
+But further temporal resolution seems to give diminishing returns
+:::
+
+
+::: {.incremental}
+
+* Still need to consider surveillance algorithms on these weighted, directed, temporal networks
+* Patients going home slows down infection spread
+* Most hospital transfer patterns aren't stationary
+* Using the wrong collapsing process means you will probably miss infections
+* May declare a hospital "disease-free" when it truly hasn't arrived yet
+
+:::
