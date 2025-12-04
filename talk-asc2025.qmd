@@ -59,11 +59,20 @@ Since then, CPE is now notifiable, but there is not a centralised surveillance o
 
 ![](images/figure1-incidence.png){fig-align="center"}
 
+## Notification system
+
+Notifications are required to be sent to the Department of Health within 24 hours of a positive result.
+
+::: {.fragment}
+However, this is a **one-way system**. Hospitals can not look up a patient to see if they have tested positive previously at a different health service.
+:::
+
 ## The current surveillance system
 
 ::: {.fragment}
 ![](images/echidna-notification-letter.png){fig-align="center"}
 :::
+
 
 
 
