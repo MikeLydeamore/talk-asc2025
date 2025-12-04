@@ -55,6 +55,18 @@ Since then, CPE is now notifiable, but there is not a centralised surveillance o
 * Unknown if asymptomatic people can transmit
 :::
 
+## Carbanememase-producing _Enterobacterales_ incidence
+
+![](images/figure1-incidence.png){fig-align="center"}
+
+## The current surveillance system
+
+::: {.fragment}
+![](images/echidna-notification-letter.png){fig-align="center"}
+:::
+
+
+
 ## Surveillance and outbreak control
 
 End goal is to model outbreak spread, and then surveillance/control methods.
